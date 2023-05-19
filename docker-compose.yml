@@ -2,12 +2,11 @@ version: "3.4"
 
 services:
   api:
-    image: ghcr.io/saleor/saleor:3.13.11
+    build: ./saleor
     ports:
       - 8000:8000
     restart: unless-stopped
-    networks:
-      - saleor-backend-tier
+    network_mode: host
     stdin_open: true
     tty: true
     depends_on:
@@ -23,7 +22,9 @@ services:
     environment:
       - JAEGER_AGENT_HOST=jaeger
       - DASHBOARD_URL=http://localhost:9000/
-      - ALLOWED_HOSTS=localhost,api
+      - ALLOWED_HOSTS=localhost,127.0.0.1,saleor
+      - DATABASE_URL=postgres://saleor:saleor@localhost:5432/saleor
+      - CELERY_BROKER_URL=redis://localhost:6379/1
 
   dashboard:
     image: ghcr.io/saleor/saleor-dashboard:3.12.7
@@ -33,11 +34,10 @@ services:
 
   db:
     image: library/postgres:13-alpine
+    network_mode: host
     ports:
       - 5432:5432
     restart: unless-stopped
-    networks:
-      - saleor-backend-tier
     volumes:
       - saleor-db:/var/lib/postgresql/data
       - ./replica_user.sql:/docker-entrypoint-initdb.d/replica_user.sql
@@ -47,20 +47,18 @@ services:
 
   redis:
     image: library/redis:5.0-alpine
+    network_mode: host
     ports:
       - 6379:6379
     restart: unless-stopped
-    networks:
-      - saleor-backend-tier
     volumes:
       - saleor-redis:/data
 
   worker:
-    image: ghcr.io/saleor/saleor:3.13.11
+    build: ./saleor
     command: celery -A saleor --app=saleor.celeryconf:app worker --loglevel=info -B
     restart: unless-stopped
-    networks:
-      - saleor-backend-tier
+    network_mode: host
     env_file:
       - common.env
       - backend.env
@@ -70,6 +68,10 @@ services:
     volumes:
       # shared volume between worker and api for media
       - saleor-media:/app/media
+    environment:
+      - DATABASE_URL=postgres://saleor:saleor@localhost:5432/saleor
+      - CELERY_BROKER_URL=redis://localhost:6379/1
+      - ALLOWED_HOSTS=localhost,127.0.0.1,saleor
 
   jaeger:
     image: jaegertracing/all-in-one
@@ -82,8 +84,7 @@ services:
       - "14268:14268"
       - "9411:9411"
     restart: unless-stopped
-    networks:
-      - saleor-backend-tier
+    network_mode: host
 
   mailpit:
     image: axllent/mailpit
@@ -91,8 +92,7 @@ services:
       - 1025:1025 # smtp server
       - 8025:8025 # web ui. Visit http://localhost:8025/ to check emails
     restart: unless-stopped
-    networks:
-      - saleor-backend-tier
+    network_mode: host
 
 volumes:
   saleor-db:
@@ -101,6 +101,3 @@ volumes:
     driver: local
   saleor-media:
 
-networks:
-  saleor-backend-tier:
-    driver: bridge
