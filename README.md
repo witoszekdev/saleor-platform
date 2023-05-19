@@ -27,4 +27,4 @@ docker compose up -d api worker
 
 ## License
 
-Disclaimer: This repository is not affiliated and officially supported by Saleor Commerce
+Disclaimer: This repository is not affiliated or officially supported by Saleor Commerce
